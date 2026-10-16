@@ -1,32 +1,45 @@
-import { Injectable, OnModuleDestroy } from "@nestjs/common";
+import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { readFileSync } from "node:fs";
 import { DatabaseSync, StatementSync } from "node:sqlite";
 
 @Injectable()
-export class DatabaseService implements OnModuleDestroy {
-  private readonly connection: DatabaseSync;
+export class DatabaseService implements OnModuleInit, OnModuleDestroy {
+  private connection: DatabaseSync | undefined;
 
-  constructor() {
+  onModuleInit(): void {
     const schemaPath = new URL("../../../schema.sql", import.meta.url);
     const schema = readFileSync(schemaPath, "utf8");
 
-    this.connection = new DatabaseSync(":memory:", {
+    const connection = new DatabaseSync(":memory:", {
       enableForeignKeyConstraints: true,
     });
 
     try {
-      this.connection.exec(schema);
+      connection.exec(schema);
+      console.log(
+        `SQLite connected to ${
+          process.env.NODE_ENV === "production" ? "production" : "development"
+        } db`,
+      );
     } catch (error) {
-      this.connection.close();
+      connection.close();
+      console.log("ERROR: Not connected to SQLite");
       throw error;
     }
+
+    this.connection = connection;
   }
 
   prepare(sql: string): StatementSync {
+    if (!this.connection) {
+      throw new Error("Database is not initialized");
+    }
+
     return this.connection.prepare(sql);
   }
 
   onModuleDestroy(): void {
-    this.connection.close();
+    this.connection?.close();
+    this.connection = undefined;
   }
 }

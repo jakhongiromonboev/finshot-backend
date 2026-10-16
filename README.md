@@ -24,7 +24,7 @@ Node.js 22 labels `node:sqlite` experimental and prints a warning. The module's 
 
 ## Database
 
-`DatabaseService` owns one in-memory SQLite connection. It executes the root `schema.sql` when Nest creates the service, and closes the connection on application shutdown. Foreign-key enforcement is explicitly enabled.
+`DatabaseService` owns one in-memory SQLite connection. Its `onModuleInit()` hook opens the database and executes the root `schema.sql` during Nest initialization. Its `onModuleDestroy()` hook closes the connection on application shutdown. Foreign-key enforcement is explicitly enabled.
 
 Each application start creates a fresh database with the supplied customers: `C001/Kim`, `C002/Lee`, and `C003/Park`. Data does not survive a restart. The schema path is resolved relative to the application file, so it also works when the compiled application is launched from another working directory.
 
