@@ -1,6 +1,6 @@
 # Finshot backend assignment
 
-This is the first implementation step: the NestJS module structure and an initialized SQLite database. Transfer endpoints and business rules are not implemented yet.
+The NestJS module structure and SQLite tables for customers and transfers are in place. Transfer endpoints and business rules are not implemented yet.
 
 ## Run
 
@@ -61,6 +61,12 @@ Startup executes `schema.sql` inside a transaction. `CREATE TABLE IF NOT EXISTS`
 
 This supports repeated initialization of the current schema, not automatic schema upgrades. Adding or changing columns in an existing table requires an explicit migration; editing a `CREATE TABLE IF NOT EXISTS` definition does not update an existing table.
 
+Each transfer has its own `transfer_id` primary key and a required `customer_id` foreign key. A customer can have many transfers; a transfer must reference an existing customer. `ON DELETE RESTRICT` prevents deleting a customer while their transfers exist. The non-unique customer index supports lookups by customer and foreign-key checks when deleting a customer or changing their ID.
+
+`idempotency_key` is globally unique across transfers. This is the database guard against duplicate creation; comparing a retry's request fields and returning the original response or a conflict still need application logic. The currency checks allow only KRW to PHP. The recipient check rejects empty names, names containing only ordinary spaces, and names over 100 characters; complete request validation, including other whitespace, will be implemented in the API. Status defaults to `REQUESTED` and is limited to the assignment's five states; valid state transitions still need application logic.
+
+Money columns use `TEXT`: whole-won decimal strings for `send_amount`, `fee`, and `total_debit`, and a decimal string with two fractional digits for `receive_amount` in PHP. For example: `"500000"`, `"5000"`, `"505000"`, and `"20600.00"`. The planned application code will validate and normalize these strings, calculate using `BigInt` in whole won / PHP centavos, and bind strings directly to SQLite without passing through JavaScript `Number` or SQLite `REAL`. The schema currently requires these values but does not validate their numeric format or calculate them. `created_at` will be supplied by the application as a UTC ISO 8601 string. No sample transfers are seeded.
+
 ## Structure
 
 ```text
@@ -93,7 +99,7 @@ npm run build
 ## AI tools
 
 OpenAI Codex helped discuss the assignment and translate its requirements.
-OpenAI Codex generated and explained the initial NestJS and SQLite setup.
+OpenAI Codex generated and explained the NestJS setup and SQLite customer/transfer schema.
 OpenAI Codex assisted with local build, database, and startup verification.
 
 ## Not implemented yet
