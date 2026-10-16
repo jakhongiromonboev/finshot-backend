@@ -9,8 +9,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     const schemaPath = new URL("../../../schema.sql", import.meta.url);
     const schema = readFileSync(schemaPath, "utf8");
+    const databasePath = process.env.DATABASE_PATH ?? ":memory:";
 
-    const connection = new DatabaseSync(":memory:", {
+    const connection = new DatabaseSync(databasePath, {
       enableForeignKeyConstraints: true,
     });
 
