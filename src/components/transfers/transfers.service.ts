@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { CreateTransferDto } from "../../libs/dto/transfers/create-transfer.dto.js";
@@ -71,6 +72,34 @@ export class TransfersService {
       return this.reuseTransfer(savedTransfer, dto);
     }
     return { ...transfer, status: "REQUESTED" };
+  }
+
+  findById(transferId: string): TransferRecord {
+    const transfer = this.repository.findById(transferId);
+
+    if (!transfer) {
+      throw new NotFoundException({
+        error: "NOT_FOUND",
+        message: "Transfer does not exist",
+      });
+    }
+
+    return transfer;
+  }
+
+  cancel(transferId: string): TransferRecord {
+    this.findById(transferId);
+
+    const cancelled = this.repository.cancelIfRequested(transferId);
+
+    if (!cancelled) {
+      throw new ConflictException({
+        error: "CONFLICT",
+        message: "Only REQUESTED transfers can be cancelled",
+      });
+    }
+
+    return this.findById(transferId);
   }
 
   private reuseTransfer(
