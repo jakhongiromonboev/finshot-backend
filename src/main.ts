@@ -1,8 +1,12 @@
-import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { AppModule } from './app.module.js';
-import { CreateTransferValidationPipe } from './libs/pipes/create-transfer-validation.pipe.js';
+import "reflect-metadata";
+import { NestFactory } from "@nestjs/core";
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from "@nestjs/platform-fastify";
+import { AppModule } from "./app.module.js";
+import { GlobalExceptionFilter } from "./libs/filters/global-exception.filter.js";
+import { CreateTransferValidationPipe } from "./libs/pipes/create-transfer-validation.pipe.js";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -10,12 +14,13 @@ async function bootstrap(): Promise<void> {
     new FastifyAdapter(),
   );
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix("api");
   app.useGlobalPipes(new CreateTransferValidationPipe());
+  app.useGlobalFilters(new GlobalExceptionFilter(app.getHttpAdapter()));
   app.enableShutdownHooks();
 
   try {
-    await app.listen(Number(process.env.PORT ?? 3000), '127.0.0.1');
+    await app.listen(Number(process.env.PORT ?? 3000), "127.0.0.1");
   } catch (error) {
     await app.close();
     throw error;
