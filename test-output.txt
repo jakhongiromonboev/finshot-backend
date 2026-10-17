@@ -7,24 +7,48 @@
 > tsc -p tsconfig.json
 
 TAP version 13
-# Subtest: calculates exact amounts, minimum fee and HALF_UP rounding
-ok 1 - calculates exact amounts, minimum fee and HALF_UP rounding
+# Subtest: returns a DTO, normalizes the amount and excludes server-owned fields
+ok 1 - returns a DTO, normalizes the amount and excludes server-owned fields
   ---
-  duration_ms: 2.627698
+  duration_ms: 2.35721
+  type: 'test'
+  ...
+# Subtest: accepts exact large amounts, nonblank names and names up to 100 characters
+ok 2 - accepts exact large amounts, nonblank names and names up to 100 characters
+  ---
+  duration_ms: 0.38851
+  type: 'test'
+  ...
+# Subtest: rejects invalid bodies and fields with the required 400 error format
+ok 3 - rejects invalid bodies and fields with the required 400 error format
+  ---
+  duration_ms: 2.71285
+  type: 'test'
+  ...
+# Subtest: leaves other parameter types and DTOs unchanged
+ok 4 - leaves other parameter types and DTOs unchanged
+  ---
+  duration_ms: 0.201791
+  type: 'test'
+  ...
+# Subtest: calculates exact amounts, minimum fee and HALF_UP rounding
+ok 5 - calculates exact amounts, minimum fee and HALF_UP rounding
+  ---
+  duration_ms: 2.776581
   type: 'test'
   ...
 # Subtest: rejects invalid formats and amounts below the minimum
-ok 2 - rejects invalid formats and amounts below the minimum
+ok 6 - rejects invalid formats and amounts below the minimum
   ---
-  duration_ms: 1.013265
+  duration_ms: 1.042796
   type: 'test'
   ...
-1..2
-# tests 2
+1..6
+# tests 6
 # suites 0
-# pass 2
+# pass 6
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 138.697584
+# duration_ms 441.773793
