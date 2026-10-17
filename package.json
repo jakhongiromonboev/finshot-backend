@@ -13,7 +13,8 @@
     "start": "npm run build && NODE_ENV=development node --env-file=.env dist/main.js",
     "start:prod": "NODE_ENV=production node --env-file=.env.production dist/main.js",
     "start:dev": "NODE_ENV=development nest start --watch --env-file .env",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
     "@nestjs/common": "12.1.3",

@@ -21,3 +21,5 @@ export interface TransferRecord {
 }
 
 export type NewTransferRecord = Omit<TransferRecord, 'status'>;
+
+export type TransferMoney = Pick<TransferRecord, 'fee' | 'totalDebit' | 'receiveAmount'>;
