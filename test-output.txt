@@ -10,45 +10,103 @@ TAP version 13
 # Subtest: returns a DTO, normalizes the amount and excludes server-owned fields
 ok 1 - returns a DTO, normalizes the amount and excludes server-owned fields
   ---
-  duration_ms: 2.35721
+  duration_ms: 1.593851
   type: 'test'
   ...
 # Subtest: accepts exact large amounts, nonblank names and names up to 100 characters
 ok 2 - accepts exact large amounts, nonblank names and names up to 100 characters
   ---
-  duration_ms: 0.38851
+  duration_ms: 0.294745
   type: 'test'
   ...
 # Subtest: rejects invalid bodies and fields with the required 400 error format
 ok 3 - rejects invalid bodies and fields with the required 400 error format
   ---
-  duration_ms: 2.71285
+  duration_ms: 2.483792
   type: 'test'
   ...
 # Subtest: leaves other parameter types and DTOs unchanged
 ok 4 - leaves other parameter types and DTOs unchanged
   ---
-  duration_ms: 0.201791
+  duration_ms: 0.166229
   type: 'test'
   ...
 # Subtest: calculates exact amounts, minimum fee and HALF_UP rounding
 ok 5 - calculates exact amounts, minimum fee and HALF_UP rounding
   ---
-  duration_ms: 2.776581
+  duration_ms: 2.555427
   type: 'test'
   ...
 # Subtest: rejects invalid formats and amounts below the minimum
 ok 6 - rejects invalid formats and amounts below the minimum
   ---
-  duration_ms: 1.042796
+  duration_ms: 0.962155
   type: 'test'
   ...
-1..6
-# tests 6
+# SQLite connected to development db
+# SQLite connected to development db
+# SQLite connected to development db
+# SQLite connected to development db
+# SQLite connected to development db
+# SQLite connected to development db
+# SQLite connected to development db
+# SQLite connected to development db
+# (node:90709) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: create stores exact money, REQUESTED status, an ID and UTC creation time
+ok 7 - create stores exact money, REQUESTED status, an ID and UTC creation time
+  ---
+  duration_ms: 22.784881
+  type: 'test'
+  ...
+# Subtest: replays the same request without inserting or resetting its status
+ok 8 - replays the same request without inserting or resetting its status
+  ---
+  duration_ms: 6.726956
+  type: 'test'
+  ...
+# Subtest: rejects a reused key with a different request and preserves the original row
+ok 9 - rejects a reused key with a different request and preserves the original row
+  ---
+  duration_ms: 6.781597
+  type: 'test'
+  ...
+# Subtest: different keys allow separate transfers for the same customer
+ok 10 - different keys allow separate transfers for the same customer
+  ---
+  duration_ms: 5.094763
+  type: 'test'
+  ...
+# Subtest: missing or invalid keys and nonexistent customers produce 400 without writes
+ok 11 - missing or invalid keys and nonexistent customers produce 400 without writes
+  ---
+  duration_ms: 6.161716
+  type: 'test'
+  ...
+# Subtest: handles an insert conflict after the first lookup (different request: false)
+ok 12 - handles an insert conflict after the first lookup (different request: false)
+  ---
+  duration_ms: 7.971375
+  type: 'test'
+  ...
+# Subtest: handles an insert conflict after the first lookup (different request: true)
+ok 13 - handles an insert conflict after the first lookup (different request: true)
+  ---
+  duration_ms: 3.660773
+  type: 'test'
+  ...
+# Subtest: does not disguise unexpected database errors as idempotency conflicts
+ok 14 - does not disguise unexpected database errors as idempotency conflicts
+  ---
+  duration_ms: 3.656145
+  type: 'test'
+  ...
+1..14
+# tests 14
 # suites 0
-# pass 6
+# pass 14
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 441.773793
+# duration_ms 627.024781
