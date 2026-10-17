@@ -28,12 +28,27 @@ export class CreateTransferValidationPipe implements PipeTransform {
       throw validationError("receiveCurrency must be PHP");
     }
 
-    if (typeof body.recipientName !== "string" || body.recipientName.trim() === "") {
+    if (
+      typeof body.recipientName !== "string" ||
+      body.recipientName.trim() === ""
+    ) {
       throw validationError("recipientName must be a non-empty string");
     }
 
     if (body.recipientName.includes("\0")) {
       throw validationError("recipientName must not contain null characters");
+    }
+
+    for (const character of body.recipientName) {
+      const codePoint = character.codePointAt(0);
+
+      if (
+        codePoint !== undefined &&
+        codePoint >= 0xd800 &&
+        codePoint <= 0xdfff
+      ) {
+        throw validationError("recipientName must contain valid Unicode");
+      }
     }
 
     // Count Unicode characters, as SQLite length() does, rather than UTF-16 units.

@@ -1,107 +1,121 @@
 # Finshot backend assignment
 
-The NestJS module structure and SQLite tables for customers and transfers are in place. Transfer endpoints and business rules are not implemented yet.
+Part 1: create, read, and cancel KRW-to-PHP transfers with exact money calculations and idempotent creation.
+
+Author: Jakhongir. Actual time spent: 3 hours 20 minutes.
 
 ## Run
 
-Use Node.js 22.22.3 (the tested version) or a newer supported version. The npm scripts use a macOS/Linux shell. From this directory, install dependencies:
+Prerequisites: Node.js **22.22.3** (the tested version), npm, and a macOS/Linux shell. The `.nvmrc` file pins the tested Node version; if you use nvm, run `nvm install` and `nvm use` before starting. Node 20 cannot run this project because it does not provide the built-in `node:sqlite` module used here.
+
+From the extracted project directory, run this single command:
 
 ```sh
-npm ci
+npm ci && npm start
 ```
 
-Create a local `.env` file next to `package.json`:
+Dependencies are installed from `package-lock.json`, TypeScript is compiled, and the API starts at `http://127.0.0.1:3000/api`. Internet access is needed for the initial npm install. No separate database server, database installation, or `.env` file is required. Node may print a warning that `.env` is absent; defaults are used. Node 22 also prints an experimental warning for `node:sqlite`.
 
-```dotenv
-PORT=3000
-DATABASE_PATH=:memory:
+By default, SQLite runs in memory and starts with `C001/Kim`, `C002/Lee`, and `C003/Park`. Transfers and idempotency keys are lost when the process restarts.
+
+## Stack and structure
+
+- NestJS with TypeScript and the Fastify HTTP adapter.
+- SQLite through Node's built-in `DatabaseSync`, using parameterized SQL without an ORM.
+- ESM and TypeScript `NodeNext`; local imports intentionally end in `.js` for the compiled output.
+
+```text
+src/
+  main.ts                         global prefix, pipe, filter, startup
+  app.module.ts
+  components/
+    components.module.ts
+    database/                     connection lifecycle and SQL access
+    transfers/                    controller, service, repository, module
+  libs/
+    dto/transfers/                request DTO and transfer types
+    pipes/                        request validation and normalization
+    filters/                      consistent HTTP error responses
+    utils/                        amount parsing and exact money calculations
 ```
 
-For development, use `npm run start:dev`. The local Nest CLI loads `.env`, watches source files, recompiles changes, and restarts the server. Alternatively, `npm start` builds once and starts the compiled application with `.env`. Both commands set `NODE_ENV=development`.
+The controller handles HTTP input, the service applies transfer rules, and the repository executes SQL through `DatabaseService`. SQLite operations are synchronous and block the JavaScript thread while running. This small assignment targets one application process.
 
-The server listens at `http://127.0.0.1:3000`. Set `PORT` to use another port. There are no registered routes in this first step, so requests currently receive Nest's default 404 response. The assignment's error format will be added with the API.
+## API
 
-### Production deployment configuration
+| Method | Path | Result |
+| --- | --- | --- |
+| POST | `/api/transfers` | 201, created or previously stored transfer |
+| GET | `/api/transfers/{transferId}` | 200, or 404 when absent |
+| POST | `/api/transfers/{transferId}/cancel` | 200 with `CANCELLED`, 404 when absent, or 409 unless currently `REQUESTED` |
 
-For deployment, create a local `.env.production` file next to `package.json`:
-
-```dotenv
-PORT=3000
-DATABASE_PATH=./finshot-backend
-```
-
-Then build and run:
+Create a transfer:
 
 ```sh
+curl -i -X POST http://127.0.0.1:3000/api/transfers \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: example-transfer-001' \
+  --data '{"customerId":"C001","sendCurrency":"KRW","sendAmount":"500000","receiveCurrency":"PHP","recipientName":"Juan Dela Cruz"}'
+```
+
+The result includes a generated UUID `transferId`, `status: "REQUESTED"`, `sendAmount: "500000"`, `fee: "5000"`, `totalDebit: "505000"`, `receiveAmount: "20600.00"`, and a UTC ISO `createdAt`. The stored customer, currencies, recipient name, and idempotency key are also returned. Use the returned `transferId` in the read and cancel URLs. Cancellation needs no request body or idempotency header; repeating cancellation returns 409.
+
+## Safe retries
+
+Every create request must include a nonblank **`Idempotency-Key`** header. The client should generate a new UUID once for each intended transfer, save it with the request, and reuse that same key and body after a timeout or connection failure. For manual checks, a fixed value such as `example-transfer-001` also works. Keys are globally unique across customers. The same key and the same five validated request fields return the stored transfer with HTTP 201 without adding a row. Reusing the key with different data returns 409; a missing or blank key returns 400. Amounts are normalized, so `"00010000"` and `"10000"` match. Customer IDs, currencies, and recipient names otherwise compare exactly; names are not trimmed. Extra body fields are ignored. A retry after cancellation returns the same transfer with its current `CANCELLED` status.
+
+The database's unique key constraint prevents duplicate rows. The service handles an insert conflict by reading the existing row and checking its request. Cancellation uses one conditional SQL update that requires `REQUESTED`.
+
+## Validation and money
+
+- `sendAmount` must be a string of decimal digits representing at least 10,000 whole KRW. Numbers, signs, decimal points, whitespace, and exponent notation are rejected.
+- Only `KRW` to `PHP` is accepted, and the customer must exist.
+- `recipientName` must contain a non-whitespace character and be at most 100 Unicode code points. Null characters and malformed Unicode are rejected so SQLite preserves the validated value.
+- Fee: 1%, rounded HALF_UP to whole won, with a minimum of 3,000 KRW.
+- `totalDebit` is the send amount plus the final fee.
+- `receiveAmount` uses the exact rate 0.0412 PHP per KRW and HALF_UP rounding to two decimal places.
+
+Money stays in decimal strings in the API and SQLite `TEXT` columns. Calculations use `BigInt` in won and centavos, with no floating-point arithmetic. PHP output always has two decimal places.
+
+## Errors and assumptions
+
+All HTTP errors handled by the application use two fields:
+
+```json
+{"error":"VALIDATION_ERROR","message":"sendAmount must be at least 10000"}
+```
+
+Part 1 uses `VALIDATION_ERROR` (400), `NOT_FOUND` (404), and `CONFLICT` (409). Unknown routes also use this format. For framework errors outside those specified cases, the filter preserves HTTP status: oversized bodies (413) and unsupported content types (415) use `VALIDATION_ERROR`; other client errors use `HTTP_ERROR`. Server errors use `INTERNAL_SERVER_ERROR` and a generic message, with details logged server-side. These fallback codes are documented choices because the assignment does not define server-error codes.
+
+## Configuration and development
+
+`npm start` optionally loads `.env`. Defaults are `PORT=3000` and `DATABASE_PATH=:memory:`. Existing shell variables take precedence over the env file. To configure the app or use watch mode in a fresh checkout:
+
+```sh
+cp .env.example .env
+npm run start:dev
+```
+
+Watch mode restarts the application after source changes, resetting an in-memory database. For optional file persistence:
+
+```sh
+cp .env.production.example .env.production
 npm run build
 npm run start:prod
 ```
 
-`start:prod` sets `NODE_ENV=production` and uses Node's `--env-file=.env.production` flag to load the file before the application starts. The file is required; an existing shell environment variable takes precedence over a value in the file. `start:prod` runs the existing build, so rebuild after changing TypeScript code.
+This loads `.env.production` and uses `DATABASE_PATH=./finshot-backend`, a SQLite file, not a directory. `NODE_ENV` alone does not select a database. Relative database paths resolve from the process working directory. `start:prod` requires its env file and an existing build; rebuild after source changes.
 
-Development reads `.env`; production reads `.env.production`. Actual `.env` files are ignored by Git, so create them using the values documented above on a fresh checkout. Neither command automatically loads the other environment's file.
+Startup executes `schema.sql` transactionally with foreign keys enabled. Seed inserts preserve existing customers. `CREATE TABLE IF NOT EXISTS` initializes missing tables; it does not migrate existing schemas.
 
-## Stack
+## Verification and scope
 
-- NestJS and TypeScript, with Fastify as Nest's HTTP adapter.
-- SQLite through Node.js's built-in `node:sqlite` module.
-- Direct SQL, without an ORM or a separate database server.
+`RESULT.md` records actual S1-S6 HTTP requests and responses from a fresh application instance. `DESIGN.md` answers Q1-Q3. Run `npm run typecheck` or `npm run build` to check compilation. No automated test files are included in this submission; the assignment makes them optional.
 
-Node.js 22 labels `node:sqlite` experimental and prints a warning. The module's synchronous operations are suitable for this small assignment; they block the JavaScript thread while a query runs.
-
-## Database
-
-`DatabaseService` reads `DATABASE_PATH`, defaulting to `:memory:`, and owns one SQLite connection. Its `onModuleInit()` hook opens the database and executes the root `schema.sql` during Nest initialization. Its `onModuleDestroy()` hook closes the connection on application shutdown. Foreign-key enforcement is explicitly enabled.
-
-Development uses `:memory:`: each application start creates a fresh database with the supplied customers: `C001/Kim`, `C002/Lee`, and `C003/Park`. Development data does not survive a restart. `NODE_ENV=production` alone does not select a different database; the loaded `DATABASE_PATH` selects it. The schema path is resolved relative to the application file, so it also works when the compiled application is launched from another working directory.
-
-Production uses `./finshot-backend`, a SQLite database **file**, not a directory. A `.db` extension is optional. Relative database paths are resolved from the process working directory; npm scripts run from this project directory. SQLite creates the file on first use and opens the same file on later starts. The database and its journal/WAL files are ignored by Git. During future deployment, retain the database file on persistent storage across application releases; an absolute `DATABASE_PATH` can identify that location.
-
-Startup executes `schema.sql` inside a transaction. `CREATE TABLE IF NOT EXISTS` creates missing tables without replacing existing ones. Seed rows use `ON CONFLICT (customer_id) DO NOTHING`, so existing customer rows and names are preserved, and missing seed IDs are inserted. If initialization fails, closing the connection rolls back the uncommitted schema transaction.
-
-This supports repeated initialization of the current schema, not automatic schema upgrades. Adding or changing columns in an existing table requires an explicit migration; editing a `CREATE TABLE IF NOT EXISTS` definition does not update an existing table.
-
-Each transfer has its own `transfer_id` primary key and a required `customer_id` foreign key. A customer can have many transfers; a transfer must reference an existing customer. `ON DELETE RESTRICT` prevents deleting a customer while their transfers exist. The non-unique customer index supports lookups by customer and foreign-key checks when deleting a customer or changing their ID.
-
-`idempotency_key` is globally unique across transfers. This is the database guard against duplicate creation; comparing a retry's request fields and returning the original response or a conflict still need application logic. The currency checks allow only KRW to PHP. The recipient check rejects empty names, names containing only ordinary spaces, and names over 100 characters; complete request validation, including other whitespace, will be implemented in the API. Status defaults to `REQUESTED` and is limited to the assignment's five states; valid state transitions still need application logic.
-
-Money columns use `TEXT`: whole-won decimal strings for `send_amount`, `fee`, and `total_debit`, and a decimal string with two fractional digits for `receive_amount` in PHP. For example: `"500000"`, `"5000"`, `"505000"`, and `"20600.00"`. The planned application code will validate and normalize these strings, calculate using `BigInt` in whole won / PHP centavos, and bind strings directly to SQLite without passing through JavaScript `Number` or SQLite `REAL`. The schema currently requires these values but does not validate their numeric format or calculate them. `created_at` will be supplied by the application as a UTC ISO 8601 string. No sample transfers are seeded.
-
-## Structure
-
-```text
-src/
-  main.ts
-  app.module.ts
-  components/
-    components.module.ts
-    transfers/
-      transfers.module.ts
-    database/
-      database.module.ts
-      database.service.ts
-  libs/
-    dto/
-      transfers/
-        creating/
-    utils/
-    filters/
-```
-
-`AppModule` imports `ComponentsModule`, which imports the feature modules. `TransfersModule` imports `DatabaseModule`; that module exports `DatabaseService` so the transfer feature can use it. DTOs, utilities, controllers, services, and repositories will be added as their behavior is implemented.
-
-## Checks
-
-```sh
-npm run build
-```
+Part 2 is not implemented: no partner client, sending worker, callbacks, retries, or daily limit. In Part 1, transfers remain `REQUESTED` until cancelled. The schema permits all five assignment statuses, while the API implements only creation and `REQUESTED` to `CANCELLED`.
 
 ## AI tools
 
-OpenAI Codex helped discuss the assignment and translate its requirements.
-OpenAI Codex generated and explained the NestJS setup and SQLite customer/transfer schema.
-OpenAI Codex assisted with local build, database, and startup verification.
-
-## Not implemented yet
-
-Part 1 still needs transfer persistence, request validation, exact money calculations, idempotency, create/read/cancel endpoints, the required error format, S1-S6 evidence, and design answers. Part 2 is not implemented.
+- OpenAI Codex assisted with understanding requirements and explaining implementation choices.
+- OpenAI Codex assisted with TypeScript/SQL implementation and README, DESIGN, and RESULT documentation.
+- OpenAI Codex assisted with build checks, API verification, edge-case review, and submission packaging.

@@ -11,3 +11,4 @@ coverage/
 /finshot-backend-wal
 /finshot-backend-shm
 .DS_Store
+/submission/
